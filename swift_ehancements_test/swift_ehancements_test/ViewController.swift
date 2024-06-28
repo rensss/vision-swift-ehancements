@@ -9,6 +9,7 @@ import UIKit
 import AVFoundation
 import Vision
 import ImageIO
+import Photos
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
@@ -120,6 +121,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                     if let productIdentifier = barcodes.first?.payloadString, let normalizedBoundingBox = barcodes.first?.boundingBox {
                         if let capturedImage = self.capturedImage {
                             self.capturedImage = self.drawObservations(normalizedBoundingBox: normalizedBoundingBox, content: productIdentifier, on: capturedImage)
+                            saveImageToPhotoAlbum(self.capturedImage!) // 保存图像到相册
                         }
                     } else {
                         print("未检测到条码")
@@ -129,6 +131,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
 //                    print("text: \(text)")
                     if let capturedImage = self.capturedImage {
                         self.capturedImage = self.drawObservations(observation: text, on: capturedImage)
+                        saveImageToPhotoAlbum(self.capturedImage!) // 保存图像到相册
                     }
 //                    for textObservation in text {
 //                        let recognizedTextList = textObservation.topCandidates(1)
@@ -240,6 +243,44 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     }
 }
 
+func requestPhotoLibraryPermission(completion: @escaping (Bool) -> Void) {
+    let status = PHPhotoLibrary.authorizationStatus()
+    switch status {
+    case .authorized:
+        completion(true)
+    case .denied, .restricted:
+        completion(false)
+    case .notDetermined:
+        PHPhotoLibrary.requestAuthorization { newStatus in
+            completion(newStatus == .authorized)
+        }
+    case .limited:
+        completion(true)
+    @unknown default:
+        completion(false)
+    }
+}
+
+func saveImageToPhotoAlbum(_ image: UIImage) {
+    requestPhotoLibraryPermission { granted in
+        guard granted else {
+            print("Photo library access denied.")
+            return
+        }
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.creationRequestForAsset(from: image)
+        }) { success, error in
+            if success {
+                print("Image successfully saved to photo album.")
+            } else if let error = error {
+                print("Error saving image to photo album: \(error.localizedDescription)")
+            } else {
+                print("Unknown error occurred while saving image to photo album.")
+            }
+        }
+    }
+}
+
 extension CGRect {
     func toImageCoordinates(_ imageSize: CGSize, origin: CGPoint) -> CGRect {
         return CGRect(
@@ -327,6 +368,7 @@ extension CGImagePropertyOrientation {
         }
     }
 }
+
 extension UIImage.Orientation {
     init(_ cgOrientation: UIImage.Orientation) {
         switch cgOrientation {
